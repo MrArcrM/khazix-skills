@@ -109,9 +109,37 @@ python3 "$SKILL_DIR/scripts/render_daily_html.py" \
   "/tmp/aihot-daily/AI HOT日报-$DATE.html"
 ```
 
+默认主题 `claude-light`（Claude 亮色）。换主题加 `--theme <name>`：
+
+```bash
+python3 "$SKILL_DIR/scripts/render_daily_html.py" \
+  "/tmp/aihot-daily/daily-$DATE.json" \
+  "/tmp/aihot-daily/AI HOT日报-$DATE.html" \
+  --theme claude-light
+
+# 列出所有可用主题
+python3 "$SKILL_DIR/scripts/render_daily_html.py" --list-themes
+```
+
 输出 self-contained HTML，预期 ~180KB（含 base64 内嵌 hero banner）。
 
-**渲染特性**（CSS 已固化在脚本里，视觉迭代 v2 定稿 2026-05-15）：
+**用户没指定主题就走默认 `claude-light`**——除非明确说「换主题 / 用 X 主题发」之类，绝不主动切换。
+
+**主题包结构**（在 `themes/<name>/` 下）：
+- `template.html.j2` — Jinja2 模板，HTML 骨架
+- `style.css` — 完整 CSS
+- `meta.json` — `{name, label, description, default, hero_pool}`
+
+**模板 context**（所有主题共享同一份契约，主题不能反向要求脚本加字段）：
+- `title` / `date` / `total` / `section_stats` — 报头数据
+- `hero_uri` — base64 data URI（空串表示无 hero）
+- `sections[]` — 每段含 `label` 和 `entries[]`
+- `entries[i]` — `{idx, title, url, badge, src_body, summary_html}`
+  - 注意：`summary_html` 已经 escape + linkify 过，模板里要 `| safe`
+  - 字段叫 `entries` 不叫 `items`：Jinja2 里 `dict.items` 是 method 会劫持属性访问
+- `css` — 主题 CSS 字符串，模板里 `<style>{{ css | safe }}</style>` 嵌入
+
+**claude-light 主题渲染特性**（视觉迭代 v2 定稿 2026-05-15）：
 
 布局结构：
 - 暖米底 `#f0eee6`（Anthropic 招牌色）+ 显式 `<meta name="color-scheme" content="light">` 强制亮色
@@ -227,10 +255,11 @@ lark-cli --profile ai-digest im +messages-send \
 ## 资产清单
 
 - `scripts/fetch_daily_with_roles.py` — 拉数据 + SSR HTML role 注入 + 章节重排 + 标签简化
-- `scripts/render_daily_html.py` — JSON → self-contained HTML（含 inline CSS、base64 hero、徽章/linkify/hashtag）
+- `scripts/render_daily_html.py` — JSON → self-contained HTML，加载 `themes/<name>/` 用 Jinja2 渲染（数据准备 + linkify + 徽章/hashtag 在脚本，CSS/HTML 在主题）
 - `scripts/gen_hero.py` — 按 $DATE hash 从基调池抽一条 → gpt-image 21:9 直出 → sips 压缩 → 覆盖 hero.jpg；失败不阻断（exit ≠ 0 时 hero.jpg 不动）
 - `scripts/hero_prompts.json` — 20 张清晨感基调池（curated 2026-05-15）；新增/删除基调改这里
 - `assets/hero.jpg` — 顶部 banner，1280 宽 ~100-150KB；由 gen_hero.py 每日覆盖（21:9 jpg quality 88）
+- `themes/<name>/` — 主题包；目前有 `claude-light`（默认）。新增主题见下方「扩展主题」
 
 **手动测试某一天的 hero**：
 
@@ -242,6 +271,24 @@ open "$SKILL_DIR/assets/hero.jpg"
 ```
 
 **扩充基调池**：编辑 `scripts/hero_prompts.json` 的 `candidates` 数组，加新 entry（id / palette / subject / body）。`common_head` 和 `common_tail` 通用约束保持不变（极简手绘 + 黑描边 + 21:9 + 无文字）。改完不需要 redeploy，下次跑 gen_hero.py 自动用新池子。
+
+## 扩展主题
+
+新加一个主题 `<name>`：
+
+1. `mkdir themes/<name>` 创建目录
+2. 写三个文件：
+   - `meta.json` — `{"name": "<name>", "label": "中文短名", "description": "...", "default": false, "hero_pool": "morning-soft"}`
+   - `style.css` — 完整 CSS（不要再用 f-string 转义，原样写）
+   - `template.html.j2` — Jinja2 模板，必须 `<style>{{ css | safe }}</style>` 嵌入 CSS，循环 `{% for section in sections %} {% for item in section.entries %}`，`{{ item.summary_html | safe }}` 拿已 linkify 的 HTML
+3. `python3 scripts/render_daily_html.py --list-themes` 验证出现在列表里
+4. `python3 scripts/render_daily_html.py daily.json out.html --theme <name>` 渲染测试
+
+**主题契约硬约束**：
+- 模板只能消费固定 context 字段（`title / date / total / section_stats / hero_uri / sections / css`），**不能反向要求脚本加字段**——否则主题间会漂移、新加主题就得改脚本
+- `summary_html` 已含 HTML 标签（`<a class="inline-link">` / `<span class="hashtag">`），主题 CSS 必须给这两个 class 准备样式（参考 claude-light/style.css）
+- 不要把 `.default` 设成多个主题——`list_themes()` 按 default 排序时只取第一个，多了行为未定义
+- 主题里**禁止**写 JS 业务逻辑——share-btn 那段脚本目前固化在模板，所有主题都复制（暂时算约定，将来做太多主题再抽 partial）
 
 ## 不要做
 
