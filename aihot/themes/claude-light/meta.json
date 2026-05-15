@@ -1,0 +1,7 @@
+{
+  "name": "claude-light",
+  "label": "Claude 亮色",
+  "description": "Anthropic Claude 招牌暖米底 + long-form 段落式 + 砖橙竖条 + 21:9 hero。aihot test-daily v2 定稿（2026-05-15）。",
+  "default": true,
+  "hero_pool": "morning-soft"
+}
