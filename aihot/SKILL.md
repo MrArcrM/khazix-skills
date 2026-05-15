@@ -417,15 +417,22 @@ curl -sH "User-Agent: $UA" "https://aihot.virxact.com/api/public/items?mode=sele
 
 ---
 
-## fork 本地扩展（不属于上游 KKKKhazix/khazix-skills）
+## fork 本地扩展（不属于上游 KKKKhazix/khazix-skills · v0.2.3）
 
 > 以下内容由 fork 仓库 MrArcrM/khazix-skills 维护，**不会**回流上游。上游同步时这一节是预期的"我们的 diff"，rebase/merge 冲突优先 take 上游版本，再把本节 reapply 即可。
 
 ### share-daily / test-daily 子命令
 
-如果用户消息**字面包含** `share-daily` 或 `test-daily` 字符串（典型用法 `/aihot share-daily` / `/aihot test-daily YYYY-MM-DD`）：
+按字面匹配分流到不同文档：
 
-1. **先读** `./share-daily.md`（跟本 SKILL.md 同目录）了解完整流程——拉数据、渲染 markdown（章节顺序 + 简标签 + 标题/信源 remix + 摘要原文）、转 PDF（`claude-white-larger` 主题）、用 `--profile ai-digest` 发飞书指定群。
-2. 触发本子命令流程时**不再**走上面的"给用户的输出格式 / 工作流"等通用章节——子命令格式更严格、目标群更明确。
-3. **模糊触发不算**：用户只说"分享日报"、"发到分享群"、"发个日报"，但**没出现** `share-daily` / `test-daily` 字面字符串 → **不**触发本子命令流程，按上面通用流程处理。这是为了避免误推送到生产分享群。
+| 用户字面命中 | 读这个文档 | 流程 | 目标群 |
+|---|---|---|---|
+| `share-daily` | `./share-daily.md` | JSON → HTML → share-html → 飞书短消息（v0.2.3 起统一 HTML 流程） | 分享群（AI 俱乐部核心成员群） |
+| `test-daily`  | `./test-daily.md`  | JSON → HTML → share-html → 飞书短消息（迭代沙盒，跟 share-daily 同管线） | 测试群（Claude Code App） |
+
+**说明**：
+- 触发本子命令时**不**走上面的"给用户的输出格式 / 工作流"通用章节——子命令格式更严格、目标群更明确
+- **模糊触发不算**：必须字面命中 `share-daily` 或 `test-daily` 字符串。"分享日报"、"发到分享群"、"发个日报"等模糊表述不触发，按通用流程处理，避免误推送到生产分享群
+- **v0.2.3（2026-05-15）**：旧 markdown → PDF 流程已下线，test-daily 在测试群迭代稳定的 HTML 流程已 apply 到 share-daily。两条子命令共用同一脚本管线（fetch_daily_with_roles.py / gen_hero.py / render_daily_html.py），唯一差异是 chat_id（share-daily → 分享群、test-daily → 测试群）
+- test-daily 继续作为后续迭代沙盒：未来新视觉 / 新流程改动先动 test-daily.md，测试群验证 OK 后再 apply 到 share-daily.md
 
