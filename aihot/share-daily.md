@@ -1,9 +1,9 @@
-# aihot · share-daily 子命令规范（HTML 流程 · v0.2.3）
+# aihot · share-daily 子命令规范（HTML 流程）
 
 > **本文件由 fork 仓库 MrArcrM/khazix-skills 维护，不属于上游 KKKKhazix/khazix-skills。**
 > 触发字面 `/aihot share-daily` / `/aihot share-daily YYYY-MM-DD` 时，agent 先读本文件再执行。
 >
-> **v0.2.3（2026-05-15）**：旧 markdown → PDF 流程已下线，替换为 test-daily 在测试群迭代稳定的 JSON → HTML → share-html → 飞书短消息流程。test-daily.md 继续作为后续迭代沙盒，本文件是生产流程。
+> **流程定位**：JSON → HTML → share-html → 飞书短消息（旧 markdown → PDF 流程已下线，由 test-daily 在测试群迭代稳定后 apply 过来）。test-daily.md 继续作为后续迭代沙盒，本文件是生产流程。
 
 ## 触发条件
 
@@ -301,13 +301,13 @@ open "$SKILL_DIR/assets/hero.jpg"
 - **不要**主动加章节内"⚠️ 跟前一天重合" / "今日 N 条" / "数据来源" 等装饰性提示
 - **不要**自动调度 cron / launchd 跑本流程——用户每次手动 `/aihot share-daily` 才跑
 - **不要**用默认 lark-cli profile（必须 `--profile ai-digest`）
-- **不要**回退到旧 PDF 流程（已下线，v0.2.3 起统一走 HTML + share-html）
+- **不要**回退到旧 PDF 流程（已下线，统一走 HTML + share-html）
 
 ## 决策记录
 
-- **2026-05-09 · v0.1**：创建 share-daily / test-daily 子命令规范，markdown → PDF 流程，章节顺序"模型→产品→技巧→行业→论文"
+- **2026-05-09**：创建 share-daily / test-daily 子命令规范，markdown → PDF 流程，章节顺序"模型→产品→技巧→行业→论文"
 - **2026-05-09**：PDF 链接高亮 + 章节空行两个首发问题修复（URL 用 `[URL](URL)` 显式 link 触发 typst 蓝色高亮，章节前必须空行避免 pandoc 把 `## XX` 当 URL 行延续）
-- **2026-05-15 · v0.2.3**：HTML 流程在测试群迭代稳定后 apply 到 share-daily，PDF 流程下线。test-daily.md 作为后续迭代沙盒保留。详细视觉/流程决策见 test-daily.md "决策记录" 节
+- **2026-05-15**：HTML 流程在测试群迭代稳定后 apply 到 share-daily，PDF 流程下线。test-daily.md 作为后续迭代沙盒保留。详细视觉/流程决策见 test-daily.md "决策记录" 节
   - 废弃 PDF：日报作为一次性消费品，HTML（可点跳转、移动端响应式、share-html 链接看完即焚）比 PDF 附件体验好
   - 跳过 markdown 中间步：JSON → HTML 直出，agent 关注语义层（fetch + 可选 remix），脚本关注视觉层（CSS / 排版 / linkify / 徽章）
   - role 字段双抓：aihot public API 不暴露 role，唯一来源是 `/daily` SSR HTML 正则提取。多 200ms 一次 GET 换"官方·X / X·KOL / 综合资讯 / 学术机构"精细分类，值得
