@@ -202,7 +202,7 @@ cd "$SHARE_DIR" && wrangler pages deploy . \
   --commit-dirty=true \
   --branch main
 
-URL="https://gqshare.pages.dev/${SLUG}.html"
+URL="https://share.guoqu4akr.com/${SLUG}.html"
 TS=$(date "+%Y-%m-%dT%H:%M:%S")
 echo "{\"ts\":\"$TS\",\"source\":\"/tmp/aihot-daily/AI HOT日报-$DATE.html\",\"slug\":\"$SLUG\",\"url\":\"$URL\"}" >> ~/Documents/ClaudeCodeWorkSpace/data/cf-meta/share_log.jsonl
 ```
@@ -336,7 +336,7 @@ open "$SKILL_DIR/assets/hero.jpg"
 - **hero 换 sage green**：原 #c46849 砖橙底跟章节竖条同色撞了，且整体橙调过重；换 sage green 后跟暖米底互补、跟橙竖条对比不撞色
 - **toolbar 区**（hero 正下方）：左 `ⓘ 标题可跳转` info icon + 提示文字（替代「点击标题跳转原文」更简洁）、右 `🔗 分享` 按钮
 - **分享按钮纯文字**：试过 pill + border 太重撤回；最终 = svg icon + 「分享」文字、无 border、`var(--ink-faint)` 淡灰、hover 变砖橙
-- **分享行为**：点击复制 `window.location.href`（部署后 = gqshare.pages.dev 公开 URL），文字切「已复制」+ 砖橙色 1.8s 后自动恢复；`navigator.clipboard.writeText` 主路径 + `document.execCommand('copy')` 兜底（覆盖非 secure context）
+- **分享行为**：点击复制 `window.location.href`（部署后 = share.guoqu4akr.com 公开 URL），文字切「已复制」+ 砖橙色 1.8s 后自动恢复；`navigator.clipboard.writeText` 主路径 + `document.execCommand('copy')` 兜底（覆盖非 secure context）
 - **toolbar 内缩 8px**：share-btn 不贴 container 最右边，左右各 8px padding
 - **去掉 hr 横线**：试过 hero 下紧贴一条淡横线分隔 toolbar、试过 toolbar 下分隔 chapter，效果都太碎，全删
 - **编号变水印**：原左列 28px 灰数字 grid 布局改成右上角 absolute 水印：56px / `rgba(20,20,19,0.045)` 极淡 / `font-weight: 800` / `letter-spacing: -0.04em`（移动端 42px）。"一开头就是值得读的文字内容"

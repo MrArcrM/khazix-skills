@@ -202,7 +202,7 @@ cd "$SHARE_DIR" && wrangler pages deploy . \
   --commit-dirty=true \
   --branch main
 
-URL="https://gqshare.pages.dev/${SLUG}.html"
+URL="https://share.guoqu4akr.com/${SLUG}.html"
 TS=$(date "+%Y-%m-%dT%H:%M:%S")
 echo "{\"ts\":\"$TS\",\"source\":\"/tmp/aihot-daily/AI HOT日报-$DATE.html\",\"slug\":\"$SLUG\",\"url\":\"$URL\"}" >> ~/Documents/ClaudeCodeWorkSpace/data/cf-meta/share_log.jsonl
 ```
