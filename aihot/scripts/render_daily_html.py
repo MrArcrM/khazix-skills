@@ -57,7 +57,9 @@ def hero_data_uri(path: Path) -> str:
     return f"data:{mime};base64,{data}"
 
 
-URL_RE = re.compile(r"https?://[^\s<>\"'　，。、；：！？）】」』]+")
+# 只匹配 RFC 3986 允许的 ASCII URL 字符；任何 CJK 字符自然终止 URL，避免
+# 「http://example.com/path后面跟中文」被整段吞掉（带链接 404 的根因）。
+URL_RE = re.compile(r"https?://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+")
 HASHTAG_RE = re.compile(r"#[A-Za-z0-9_一-鿿]+")
 
 
