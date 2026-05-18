@@ -13,6 +13,8 @@
     - 失败时**不**修改 assets/hero.jpg，调用方应继续用现有图（不要阻断流程）
     - 同一 $DATE 反复跑命中同一基调（hash 确定性）
 """
+from __future__ import annotations
+
 import hashlib
 import json
 import shutil
@@ -23,13 +25,44 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parent.parent
 PROMPTS_JSON = SKILL_DIR / "scripts" / "hero_prompts.json"
 HERO_JPG = SKILL_DIR / "assets" / "hero.jpg"
+STATE_JSON = SKILL_DIR / "assets" / "hero-state.json"
 WORK_DIR = Path("/tmp/aihot-daily")
 
 
-def pick(date: str, candidates: list) -> dict:
-    """按 $DATE md5 hash 选一条基调。"""
+def pick(date: str, candidates: list, avoid_palette: str | None = None) -> tuple[dict, int, int]:
+    """按 $DATE md5 hash 选一条基调；若 avoid_palette 给定，向后滑动跳过同 palette 的相邻条。
+
+    返回 (chosen, base_idx, final_idx)，便于调用方 log 出 hash 命中 vs 实际选中的差异。
+    """
     h = int(hashlib.md5(date.encode()).hexdigest(), 16)
-    return candidates[h % len(candidates)]
+    n = len(candidates)
+    base_idx = h % n
+    if avoid_palette is None:
+        return candidates[base_idx], base_idx, base_idx
+    for offset in range(n):
+        idx = (base_idx + offset) % n
+        if candidates[idx]["palette"] != avoid_palette:
+            return candidates[idx], base_idx, idx
+    return candidates[base_idx], base_idx, base_idx
+
+
+def load_state() -> dict | None:
+    if not STATE_JSON.exists():
+        return None
+    try:
+        return json.loads(STATE_JSON.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def save_state(date: str, chosen: dict) -> None:
+    STATE_JSON.parent.mkdir(parents=True, exist_ok=True)
+    STATE_JSON.write_text(json.dumps({
+        "last_date": date,
+        "last_id": chosen["id"],
+        "last_palette": chosen["palette"],
+        "last_subject": chosen["subject"],
+    }, ensure_ascii=False, indent=2) + "\n")
 
 
 def main() -> int:
@@ -40,10 +73,15 @@ def main() -> int:
     WORK_DIR.mkdir(parents=True, exist_ok=True)
 
     data = json.loads(PROMPTS_JSON.read_text())
-    chosen = pick(date, data["candidates"])
+    state = load_state()
+    avoid = state["last_palette"] if state and state.get("last_date") != date else None
+    chosen, base_idx, final_idx = pick(date, data["candidates"], avoid)
     full_prompt = f"{data['common_head']} {chosen['body']}, {data['common_tail']}"
     out_name = f"hero-{date}-{chosen['id']}"
 
+    if final_idx != base_idx:
+        print(f"📅 {date} → hash idx={base_idx} 撞昨日 palette '{avoid}'，滑到 idx={final_idx}",
+              file=sys.stderr)
     print(f"📅 {date} → 🎨 {chosen['palette']} / {chosen['subject']} ({chosen['id']})",
           file=sys.stderr)
 
@@ -97,6 +135,7 @@ def main() -> int:
     HERO_JPG.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(tmp_jpg, HERO_JPG)
     size_kb = HERO_JPG.stat().st_size // 1024
+    save_state(date, chosen)
     print(f"✅ hero.jpg 已更新 ({size_kb}KB)", file=sys.stderr)
     return 0
 
