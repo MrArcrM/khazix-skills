@@ -85,6 +85,8 @@ role 取值集：`官方·X` / `X·KOL` / `官方` / `综合资讯` / `学术机
 
 按 `$DATE` md5 hash 从 `scripts/hero_prompts.json` 的 20 张清晨感基调池里抽一条，跑 gpt-image 生成 **1792x768（21:9 直出）** → sips 缩到 1280 宽 + jpg quality 88 → 覆盖 `assets/hero.jpg`。同一天复跑命中同一基调（hash 确定），跨天换图。
 
+**昨日 palette 避让**：成功生成后会写 `assets/hero-state.json` 记录 `{last_date, last_id, last_palette, last_subject}`；下次跑时若 hash 命中条目的 `palette` 和昨日相同，向后滑一格继续找直到不撞 palette。治"连续两天同色调"的视觉重复（如 5-16/5-17 两条 Cornflower Blue 撞蓝船）。失败不写 state，保持和实际 `hero.jpg` 一致。
+
 ```bash
 python3 "$SKILL_DIR/scripts/gen_hero.py" "$DATE"
 ```
@@ -258,9 +260,10 @@ lark-cli --profile ai-digest im +messages-send \
 
 - `scripts/fetch_daily_with_roles.py` — 拉数据 + SSR HTML role 注入 + 章节重排 + 标签简化
 - `scripts/render_daily_html.py` — JSON → self-contained HTML，加载 `themes/<name>/` 用 Jinja2 渲染（数据准备 + linkify + 徽章/hashtag 在脚本，CSS/HTML 在主题）
-- `scripts/gen_hero.py` — 按 $DATE hash 从基调池抽一条 → gpt-image 21:9 直出 → sips 压缩 → 覆盖 hero.jpg；失败不阻断（exit ≠ 0 时 hero.jpg 不动）
+- `scripts/gen_hero.py` — 按 $DATE hash 从基调池抽一条（撞昨日 palette 时向后滑窗）→ gpt-image 21:9 直出 → sips 压缩 → 覆盖 hero.jpg；失败不阻断（exit ≠ 0 时 hero.jpg 和 hero-state.json 都不动）
 - `scripts/hero_prompts.json` — 20 张清晨感基调池（curated 2026-05-15）；新增/删除基调改这里
 - `assets/hero.jpg` — 顶部 banner，1280 宽 ~100-150KB；由 gen_hero.py 每日覆盖（21:9 jpg quality 88）
+- `assets/hero-state.json` — 最近一次成功生成的 `{last_date, last_id, last_palette, last_subject}`，用于跨天 palette 避让
 - `themes/<name>/` — 主题包；目前有 `claude-light`（默认）。新增主题见下方「扩展主题」
 
 **手动测试某一天的 hero**：
