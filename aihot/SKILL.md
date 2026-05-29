@@ -427,12 +427,13 @@ curl -sH "User-Agent: $UA" "https://aihot.virxact.com/api/public/items?mode=sele
 
 | 用户字面命中 | 读这个文档 | 流程 | 目标群 |
 |---|---|---|---|
-| `share-daily` | `./share-daily.md` | JSON → HTML → share-html → 飞书短消息 | 分享群（AI 俱乐部核心成员群） |
+| `share-daily` | `./share-daily.md` | JSON → HTML → share-html → 飞书短消息 × 2 + Slack 短消息 × 1 | 飞书「AI 俱乐部核心成员群」+ 飞书「云崖书院筑基斋」+ Slack `#inbox` |
 | `test-daily`  | `./test-daily.md`  | JSON → HTML → share-html → 飞书短消息（迭代沙盒，跟 share-daily 同管线） | 测试群（Claude Code App） |
 
 **说明**：
 - 触发本子命令时**不**走上面的"给用户的输出格式 / 工作流"通用章节——子命令格式更严格、目标群更明确
 - **模糊触发不算**：必须字面命中 `share-daily` 或 `test-daily` 字符串。"分享日报"、"发到分享群"、"发个日报"等模糊表述不触发，按通用流程处理，避免误推送到生产分享群
-- **2026-05-15**：旧 markdown → PDF 流程已下线，test-daily 在测试群迭代稳定的 HTML 流程已 apply 到 share-daily。两条子命令共用同一脚本管线（fetch_daily_with_roles.py / gen_hero.py / render_daily_html.py），唯一差异是 chat_id（share-daily → 分享群、test-daily → 测试群）
+- **2026-05-15**：旧 markdown → PDF 流程已下线，test-daily 在测试群迭代稳定的 HTML 流程已 apply 到 share-daily。两条子命令共用同一脚本管线（fetch_daily_with_roles.py / gen_hero.py / render_daily_html.py），唯一差异是分享 target（share-daily → 飞书 × 2 + Slack #inbox、test-daily → 飞书测试群）
+- **2026-05-29**：share-daily target 从 1 处扩到 3 处（新增 飞书云崖书院筑基斋 + Slack #inbox）。每个 target 失败不阻断其他。详见 share-daily.md「分享 targets」段
 - test-daily 继续作为后续迭代沙盒：未来新视觉 / 新流程改动先动 test-daily.md，测试群验证 OK 后再 apply 到 share-daily.md
 
