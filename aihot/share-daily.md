@@ -16,10 +16,27 @@
 
 **字面匹配**：模糊表述（"分享日报"、"发到分享群"、"分享 daily"）**不触发**——避免误推送到生产分享群。
 
-## 飞书 bot + 群
+## 分享 targets（飞书 × 2 + Slack × 1）
 
-- **bot profile**：`ai-digest`（即 AI-Daily-Digest 飞书机器人）。所有 lark-cli 调用必须显式 `--profile ai-digest`，**不要**用默认 profile。
-- **分享群 chat_id**：`oc_937244556a810e4996bfc221adb21794`（飞书显示名 "AI俱乐部核心成员群"）
+share-daily 同时推 3 个 target，每个 target 失败不阻断其他（宁可少推一个，也不要因为一个 token 过期把整轮 share 卡住）：
+
+**飞书 targets**：
+
+| label | chat_id | lark profile |
+|---|---|---|
+| AI 俱乐部核心成员群 | `oc_937244556a810e4996bfc221adb21794` | `ai-digest`（AI-Daily-Digest bot）|
+| 云崖书院筑基斋 | `oc_9019463d0066f4f23f1811217d9dae96` | `yunya` |
+
+**Slack target**：
+
+| label | channel_id | 工具 |
+|---|---|---|
+| #inbox | `C0B65DJHB2L` | Slack MCP `slack_send_message` |
+
+**硬约束**：
+- 每个飞书 target 用各自的专属 bot profile，**绝不**用 lark-cli 默认 profile（那是郭大大本人的 Claude Code bot，发到分享群会泄露私域上下文）
+- Slack 走 MCP 工具不是 CLI，由 LLM 直接调 `slack_send_message`，不要包 bash
+- 三个 target hardcode 在本文件即可，不引入 config.json 抽象层（aihot 没这层）
 
 ## 工作流（一气呵成，任一步失败即停 + 告知用户、绝不继续）
 
@@ -213,36 +230,56 @@ echo "{\"ts\":\"$TS\",\"source\":\"/tmp/aihot-daily/AI HOT日报-$DATE.html\",\"
 
 **错误**：wrangler 失败 → **告诉用户，停**，留 HTML 在本地
 
-### Step 6 · 发飞书分享群（短文本消息）
+### Step 6 · 推 3 个分享 target（飞书 × 2 + Slack × 1，短文本消息）
 
-只发两行：`📝 AI HOT 日报 MM/DD` + `🔗 URL`。**不要**塞内容摘要——长内容点链接看，群消息保持清爽（≤10 字描述规则，遵循 share-html skill 约定）。
+消息**只两行**，三个 target 完全一致：`📝 AI HOT 日报 MM/DD` + `🔗 URL`。**不要**塞内容摘要——长内容点链接看，群消息保持清爽（≤10 字描述规则，遵循 share-html skill 约定）。
+
+**单点失败不阻断**：任一 target 失败 log 即可，继续推下一个、继续 Step 7 回报（哪些成功 / 哪些失败给用户看）。
+
+**6a · 飞书两个群（bash loop）**
 
 ```bash
 SHORT_DATE=$(date -j -f "%Y-%m-%d" "$DATE" "+%m/%d" 2>/dev/null || date -d "$DATE" "+%m/%d")
 MSG="📝 AI HOT 日报 ${SHORT_DATE}
 🔗 ${URL}"
-lark-cli --profile ai-digest im +messages-send \
-  --chat-id oc_937244556a810e4996bfc221adb21794 \
-  --text "$MSG" \
-  --as bot
+
+# 数组：chat_id<TAB>profile<TAB>label
+TARGETS=(
+  "oc_937244556a810e4996bfc221adb21794	ai-digest	AI 俱乐部核心成员群"
+  "oc_9019463d0066f4f23f1811217d9dae96	yunya	云崖书院筑基斋"
+)
+
+for line in "${TARGETS[@]}"; do
+  IFS=$'\t' read -r CHAT_ID PROFILE LABEL <<< "$line"
+  echo "→ Feishu share to ${LABEL} (profile=${PROFILE})" >&2
+  lark-cli --profile "$PROFILE" im +messages-send \
+    --chat-id "$CHAT_ID" \
+    --text "$MSG" \
+    --as bot \
+    || echo "⚠️  Feishu push to ${LABEL} failed (profile=${PROFILE})" >&2
+done
 ```
 
-**`--profile ai-digest` 必加**——少了会用默认 Claude Code App bot 发，分享群里 AI-Daily-Digest 才是预期发送方。
+**`--profile` 必加**——少了会用默认 Claude Code App bot 发，每个群里专属 bot 才是预期发送方。
 
-**`--chat-id` 一定是分享群 `oc_937244556a810e4996bfc221adb21794`**——别误用测试群 ID。share-daily 的核心语义就是发分享群，发错群比不发更糟。
+**6b · Slack #inbox（LLM 直接调 MCP）**
 
-**错误**：lark-cli 失败 → **告诉用户，留 HTML 在本地** `/tmp/aihot-daily/AI HOT日报-$DATE.html` + URL，让他手动转发
+由 LLM 调用 `mcp__<slack-uuid>__slack_send_message`，参数 `channel_id="C0B65DJHB2L"` + `message=$MSG`（跟 6a 同一份文本）。**不要**包 bash，Slack 是 MCP 工具不是 CLI。
+
+失败处理：MCP 报错（`channel_not_found` / `not_in_channel` / token 失效等）记录在 Step 7 回报，**不阻断**已成功的 6a 飞书推送，也不影响后续返回。
+
+**错误总体处理**：3 个 target 全失败 → **告诉用户，留 HTML 在本地** `/tmp/aihot-daily/AI HOT日报-$DATE.html` + URL，让他手动转发。部分失败 → Step 7 明确列出哪些 OK / 哪些挂了。
 
 ### Step 7 · 回报
 
 成功后给用户：
-- "share-daily ✅ 已发分享群"
+- "share-daily ✅ 已推 N/3 个 target"
+- 列出每个 target 状态：`✅ AI 俱乐部核心成员群` / `✅ 云崖书院筑基斋` / `✅ Slack #inbox`（失败的换 ❌ + 一行原因）
 - `URL`：$URL
-- `message_id`：lark-cli 返回值
 - `HTML 体积`：KB
 - `role 命中`：N/N（fetch 脚本输出）
 
-**不要**把端点路径 / curl 命令 / wrangler 输出 / lark-cli 完整 JSON 泄漏到回复里。
+**不要**把端点路径 / curl 命令 / wrangler 输出 / lark-cli 完整 JSON / Slack MCP 返回原文泄漏到回复里。
 
 ## 常见错误对应
 
@@ -253,8 +290,10 @@ lark-cli --profile ai-digest im +messages-send \
 | role matched 远小于 total | aihot 网站 SSR markup 改版 | 检查 `ROLE_PAT` 正则；临时可继续，role 为空时脚本自动 fallback 到 `parse_source()` 三段式徽章（X / RSS / 网页）|
 | render 报 hero 文件不存在 | `assets/hero.jpg` 被误删 | 不影响渲染（脚本会跳过 hero block），但页面顶部少一块。重生成见下方"资产清单" |
 | wrangler 报 "Project not found" | gqshare 项目被误删 | 重建：`wrangler pages project create gqshare --production-branch main` |
-| lark-cli 报 token 错误 | ai-digest profile token 失效 | 告知用户运行 `lark-cli --profile ai-digest auth login` |
-| 飞书消息发出但群里没看到 | bot 不在分享群里 | 告知用户把 AI-Daily-Digest 加进分享群 |
+| lark-cli 报 token 错误 | 对应 profile token 失效 | 告知用户运行 `lark-cli --profile <profile> auth login`（ai-digest 或 yunya）|
+| 飞书消息发出但群里没看到 | bot 不在群里 | 告知用户把对应 bot（AI-Daily-Digest / yunya）加进对应群 |
+| Slack 报 `not_in_channel` | Slack bot 未加进 #inbox | 在 #inbox 里 `/invite @<bot 名>` 把 bot 邀请进频道 |
+| Slack 报 `channel_not_found` | channel_id 错 / bot 没权限看该频道 | 重新跑 `slack_search_channels` 确认 ID，或检查 bot 是否有 `channels:read` scope |
 
 ## 资产清单
 
@@ -298,18 +337,21 @@ open "$SKILL_DIR/assets/hero.jpg"
 ## 不要做
 
 - **不要**在用户没明说 `share-daily` 字符串时触发本流程
-- **不要**把 share-daily 默认发到测试群（核心语义就是发分享群 `oc_937244556a810e4996bfc221adb21794`）
+- **不要**把 share-daily 推到测试群或其他非约定 target（生产 target 就是「飞书 × 2 + Slack #inbox」三处，列在顶部表格里）
 - **不要**改写 API summary 文本（"原样照抄"是硬约束）
 - **不要**渲染 `lead` 段（即使 API 返回了 `lead` 字段也跳过）
 - **不要**主动加章节内"⚠️ 跟前一天重合" / "今日 N 条" / "数据来源" 等装饰性提示
 - **不要**自动调度 cron / launchd 跑本流程——用户每次手动 `/aihot share-daily` 才跑
-- **不要**用默认 lark-cli profile（必须 `--profile ai-digest`）
+- **不要**用默认 lark-cli profile（每个飞书 target 必须用各自的 `--profile`，见顶部表格）
+- **不要**把 Slack 推送包成 bash（Slack 是 MCP 工具，LLM 直接调）
+- **不要**在 Slack 默认推到其他频道（#p-all-updates / #project-* / Linear 镜像 #p-* 等都不推；只发 #inbox）
 - **不要**回退到旧 PDF 流程（已下线，统一走 HTML + share-html）
 
 ## 决策记录
 
 - **2026-05-09**：创建 share-daily / test-daily 子命令规范，markdown → PDF 流程，章节顺序"模型→产品→技巧→行业→论文"
 - **2026-05-09**：PDF 链接高亮 + 章节空行两个首发问题修复（URL 用 `[URL](URL)` 显式 link 触发 typst 蓝色高亮，章节前必须空行避免 pandoc 把 `## XX` 当 URL 行延续）
+- **2026-05-29**：share-daily 新增 2 个 target —— 飞书云崖书院筑基斋（profile `yunya`）+ Slack #inbox（MCP）。生产 target 从 1 处扩到 3 处，复用同一份 share URL 和同一行消息文本。单点失败不阻断其他 target（沿用 follow-builders 6d 多群约定）。Slack 走 MCP 不走 CLI，由 LLM 直接调 `slack_send_message`
 - **2026-05-15**：HTML 流程在测试群迭代稳定后 apply 到 share-daily，PDF 流程下线。test-daily.md 作为后续迭代沙盒保留。详细视觉/流程决策见 test-daily.md "决策记录" 节
   - 废弃 PDF：日报作为一次性消费品，HTML（可点跳转、移动端响应式、share-html 链接看完即焚）比 PDF 附件体验好
   - 跳过 markdown 中间步：JSON → HTML 直出，agent 关注语义层（fetch + 可选 remix），脚本关注视觉层（CSS / 排版 / linkify / 徽章）
