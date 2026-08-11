@@ -3,7 +3,7 @@
 > **本文件由 fork 仓库 MrArcrM/khazix-skills 维护，不属于上游 KKKKhazix/khazix-skills。**
 > 触发字面 `/aihot test-daily` / `/aihot test-daily YYYY-MM-DD` 时，agent 先读本文件再执行。
 >
-> **流程定位**：HTML + share-html 链接 + 飞书短消息（替代旧的 markdown → PDF 上传附件）。share-daily 暂时还在 PDF 旧流程（见 `./share-daily.md`），等 test-daily 在测试群迭代稳定后再 apply 到 share-daily。
+> **流程定位**：HTML + share-html 链接 + 飞书短消息（替代旧的 markdown → PDF 上传附件）。share-daily 已使用同一 HTML 管线；本文件继续作为视觉与流程迭代沙盒。
 
 ## 触发条件
 
@@ -23,6 +23,13 @@
 
 ## 工作流（一气呵成，任一步失败即停 + 告知用户、绝不继续）
 
+先解析运行目录：
+
+```bash
+SKILL_DIR="<当前加载的 aihot Skill 目录绝对路径>"
+WORKSPACE_ROOT="${WORKSPACE_ROOT:-$HOME/Documents/ClaudeCodeWorkSpace}"
+```
+
 ### Step 1 · 确认日期
 
 - `date "+%Y-%m-%d"` 拿系统当日（**不**信对话注入的 currentDate）
@@ -40,7 +47,6 @@
 6. 输出合并 JSON 到指定路径
 
 ```bash
-SKILL_DIR=/Users/guoqu/Documents/ClaudeCodeWorkSpace/agents/honey-bee/.claude/skills/aihot
 mkdir -p /tmp/aihot-daily
 python3 "$SKILL_DIR/scripts/fetch_daily_with_roles.py" "$DATE" "/tmp/aihot-daily/daily-$DATE.json"
 ```
@@ -189,7 +195,7 @@ Summary 处理：
 走 `/share-html` skill 的核心逻辑（cp 到数据目录加 6 位 hash 防猜 → wrangler 部署 → 拿 URL → 写 share log）：
 
 ```bash
-SHARE_DIR=~/Documents/ClaudeCodeWorkSpace/data/share-html
+SHARE_DIR="$WORKSPACE_ROOT/data/share-html"
 HASH=$(openssl rand -hex 3)
 SLUG="ai-hot-daily-$DATE-$HASH"
 TARGET="$SHARE_DIR/${SLUG}.html"
@@ -204,10 +210,10 @@ cd "$SHARE_DIR" && wrangler pages deploy . \
 
 URL="https://share.guoqu4akr.com/${SLUG}.html"
 TS=$(date "+%Y-%m-%dT%H:%M:%S")
-echo "{\"ts\":\"$TS\",\"source\":\"/tmp/aihot-daily/AI HOT日报-$DATE.html\",\"slug\":\"$SLUG\",\"url\":\"$URL\"}" >> ~/Documents/ClaudeCodeWorkSpace/data/cf-meta/share_log.jsonl
+echo "{\"ts\":\"$TS\",\"source\":\"/tmp/aihot-daily/AI HOT日报-$DATE.html\",\"slug\":\"$SLUG\",\"url\":\"$URL\"}" >> "$WORKSPACE_ROOT/data/cf-meta/share_log.jsonl"
 ```
 
-⚠️ share log **绝不**写进 `$SHARE_DIR` —— wrangler 全量上传该目录，log 会变成公网可读，泄露所有历史分享链接。永远 append 到 `~/Documents/ClaudeCodeWorkSpace/data/cf-meta/share_log.jsonl`（外部）。
+⚠️ share log **绝不**写进 `$SHARE_DIR` —— wrangler 全量上传该目录，log 会变成公网可读，泄露所有历史分享链接。永远 append 到 `$WORKSPACE_ROOT/data/cf-meta/share_log.jsonl`（外部）。
 
 **错误**：wrangler 失败 → **告诉用户，停**，留 HTML 在本地
 
@@ -264,7 +270,6 @@ lark-cli --profile ai-digest im +messages-send \
 **手动测试某一天的 hero**：
 
 ```bash
-SKILL_DIR=/Users/guoqu/Documents/ClaudeCodeWorkSpace/agents/honey-bee/.claude/skills/aihot
 python3 "$SKILL_DIR/scripts/gen_hero.py" 2026-05-15  # 任意日期；同日 hash 命中同一基调
 # 看新 hero
 open "$SKILL_DIR/assets/hero.jpg"

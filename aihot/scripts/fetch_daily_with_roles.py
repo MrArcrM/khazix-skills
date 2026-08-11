@@ -49,7 +49,7 @@ LABEL_SHORT = {
     "论文研究": "论文",
 }
 
-ROLE_PAT = re.compile(r'class="role-tag">([^<]+)</span><span>([^<]+)</span>')
+ROLE_PAT = re.compile(r'class="[^"]*\brole-tag\b[^"]*"[^>]*>([^<]+)</span><span>([^<]+)</span>')
 
 
 def fetch(url: str) -> str:

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI HOT"
+  short_description: "Fetch and publish current Chinese AI news digests"
+  default_prompt: "Use $aihot to show me today’s most important AI updates."
