@@ -25,7 +25,7 @@ share-daily 同时推 3 个 target，每个 target 失败不阻断其他（宁�
 | label | chat_id | lark profile |
 |---|---|---|
 | AI 俱乐部核心成员群 | `oc_937244556a810e4996bfc221adb21794` | `ai-digest`（AI-Daily-Digest bot）|
-| 云崖书院筑基斋 | `oc_9019463d0066f4f23f1811217d9dae96` | `yunya` |
+| 日报群 | `oc_4409cbc63ef0bfaa3359df0e4acf42d3` | `yunya` |
 
 **Slack target**：
 
@@ -39,6 +39,13 @@ share-daily 同时推 3 个 target，每个 target 失败不阻断其他（宁�
 - 三个 target hardcode 在本文件即可，不引入 config.json 抽象层（aihot 没这层）
 
 ## 工作流（一气呵成，任一步失败即停 + 告知用户、绝不继续）
+
+先解析运行目录：
+
+```bash
+SKILL_DIR="<当前加载的 aihot Skill 目录绝对路径>"
+WORKSPACE_ROOT="${WORKSPACE_ROOT:-$HOME/Documents/ClaudeCodeWorkSpace}"
+```
 
 ### Step 1 · 确认日期
 
@@ -57,7 +64,6 @@ share-daily 同时推 3 个 target，每个 target 失败不阻断其他（宁�
 6. 输出合并 JSON 到指定路径
 
 ```bash
-SKILL_DIR=/Users/guoqu/Documents/ClaudeCodeWorkSpace/agents/honey-bee/.claude/skills/aihot
 mkdir -p /tmp/aihot-daily
 python3 "$SKILL_DIR/scripts/fetch_daily_with_roles.py" "$DATE" "/tmp/aihot-daily/daily-$DATE.json"
 ```
@@ -208,7 +214,7 @@ Summary 处理：
 走 `/share-html` skill 的核心逻辑（cp 到数据目录加 6 位 hash 防猜 → wrangler 部署 → 拿 URL → 写 share log）：
 
 ```bash
-SHARE_DIR=~/Documents/ClaudeCodeWorkSpace/data/share-html
+SHARE_DIR="$WORKSPACE_ROOT/data/share-html"
 HASH=$(openssl rand -hex 3)
 SLUG="ai-hot-daily-$DATE-$HASH"
 TARGET="$SHARE_DIR/${SLUG}.html"
@@ -223,10 +229,10 @@ cd "$SHARE_DIR" && wrangler pages deploy . \
 
 URL="https://share.guoqu4akr.com/${SLUG}.html"
 TS=$(date "+%Y-%m-%dT%H:%M:%S")
-echo "{\"ts\":\"$TS\",\"source\":\"/tmp/aihot-daily/AI HOT日报-$DATE.html\",\"slug\":\"$SLUG\",\"url\":\"$URL\"}" >> ~/Documents/ClaudeCodeWorkSpace/data/cf-meta/share_log.jsonl
+echo "{\"ts\":\"$TS\",\"source\":\"/tmp/aihot-daily/AI HOT日报-$DATE.html\",\"slug\":\"$SLUG\",\"url\":\"$URL\"}" >> "$WORKSPACE_ROOT/data/cf-meta/share_log.jsonl"
 ```
 
-⚠️ share log **绝不**写进 `$SHARE_DIR` —— wrangler 全量上传该目录，log 会变成公网可读，泄露所有历史分享链接。永远 append 到 `~/Documents/ClaudeCodeWorkSpace/data/cf-meta/share_log.jsonl`（外部）。
+⚠️ share log **绝不**写进 `$SHARE_DIR` —— wrangler 全量上传该目录，log 会变成公网可读，泄露所有历史分享链接。永远 append 到 `$WORKSPACE_ROOT/data/cf-meta/share_log.jsonl`（外部）。
 
 **错误**：wrangler 失败 → **告诉用户，停**，留 HTML 在本地
 
@@ -246,7 +252,7 @@ MSG="📝 AI HOT 日报 ${SHORT_DATE}
 # 数组：chat_id<TAB>profile<TAB>label
 TARGETS=(
   "oc_937244556a810e4996bfc221adb21794	ai-digest	AI 俱乐部核心成员群"
-  "oc_9019463d0066f4f23f1811217d9dae96	yunya	云崖书院筑基斋"
+  "oc_4409cbc63ef0bfaa3359df0e4acf42d3	yunya	日报群"
 )
 
 for line in "${TARGETS[@]}"; do
@@ -274,7 +280,7 @@ done
 
 成功后给用户：
 - "share-daily ✅ 已推 N/3 个 target"
-- 列出每个 target 状态：`✅ AI 俱乐部核心成员群` / `✅ 云崖书院筑基斋` / `✅ Slack #inbox`（失败的换 ❌ + 一行原因）
+- 列出每个 target 状态：`✅ AI 俱乐部核心成员群` / `✅ 日报群` / `✅ Slack #inbox`（失败的换 ❌ + 一行原因）
 - `URL`：$URL
 - `HTML 体积`：KB
 - `role 命中`：N/N（fetch 脚本输出）
@@ -308,7 +314,6 @@ done
 **手动测试某一天的 hero**：
 
 ```bash
-SKILL_DIR=/Users/guoqu/Documents/ClaudeCodeWorkSpace/agents/honey-bee/.claude/skills/aihot
 python3 "$SKILL_DIR/scripts/gen_hero.py" 2026-05-15  # 任意日期；同日 hash 命中同一基调
 # 看新 hero
 open "$SKILL_DIR/assets/hero.jpg"
@@ -352,6 +357,7 @@ open "$SKILL_DIR/assets/hero.jpg"
 - **2026-05-09**：创建 share-daily / test-daily 子命令规范，markdown → PDF 流程，章节顺序"模型→产品→技巧→行业→论文"
 - **2026-05-09**：PDF 链接高亮 + 章节空行两个首发问题修复（URL 用 `[URL](URL)` 显式 link 触发 typst 蓝色高亮，章节前必须空行避免 pandoc 把 `## XX` 当 URL 行延续）
 - **2026-05-29**：share-daily 新增 2 个 target —— 飞书云崖书院筑基斋（profile `yunya`）+ Slack #inbox（MCP）。生产 target 从 1 处扩到 3 处，复用同一份 share URL 和同一行消息文本。单点失败不阻断其他 target（沿用 follow-builders 6d 多群约定）。Slack 走 MCP 不走 CLI，由 LLM 直接调 `slack_send_message`
+- **2026-06-04**：yunya target 从「云崖书院筑基斋」(`oc_9019463d0066f4f23f1811217d9dae96`) 切到「日报群」(`oc_4409cbc63ef0bfaa3359df0e4acf42d3`)，bot profile 不变（仍是云崖小书僮 `yunya`）。原因：筑基斋是云崖书院公共群，日报内容只对郭大大本人有意义，迁到自建日报群保持公共群干净
 - **2026-05-15**：HTML 流程在测试群迭代稳定后 apply 到 share-daily，PDF 流程下线。test-daily.md 作为后续迭代沙盒保留。详细视觉/流程决策见 test-daily.md "决策记录" 节
   - 废弃 PDF：日报作为一次性消费品，HTML（可点跳转、移动端响应式、share-html 链接看完即焚）比 PDF 附件体验好
   - 跳过 markdown 中间步：JSON → HTML 直出，agent 关注语义层（fetch + 可选 remix），脚本关注视觉层（CSS / 排版 / linkify / 徽章）

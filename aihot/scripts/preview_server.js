@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const port = parseInt(process.argv[2] || '8765', 10);
-const root = process.argv[3] || '/Users/guoqu/Documents/ClaudeCodeWorkSpace/agents/honey-bee/data/aihot-preview';
+const root = path.resolve(process.argv[3] || process.env.AIHOT_PREVIEW_ROOT || 'data/aihot-preview');
 
 const types = {
   '.html': 'text/html; charset=utf-8',
